@@ -1,0 +1,15 @@
+version: '3'
+services:
+  api:
+    image: golang:alpine
+    container_name: api
+    build: './api'
+    ports:
+      - '9090:3001'
+    depends_on:
+      - 'mongo'
+  mongo:
+    image: 'mongo:latest'
+    container_name: 'mongo'
+    ports:
+      - '27017:27017'
