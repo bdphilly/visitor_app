@@ -1,15 +1,22 @@
 version: '3'
 services:
   api:
-    image: golang:alpine
+    image: golang:latest
     container_name: api
     build: './api'
     ports:
-      - '9090:3001'
+      - '9090:9090'
     depends_on:
       - 'mongo'
+    environment:
+      DB_HOST: 'mongo:27017'
   mongo:
     image: 'mongo:latest'
-    container_name: 'mongo'
+    container_name: mongo
     ports:
       - '27017:27017'
+  web:
+    build: ./app
+    container_name: app
+    ports:
+      - '8080:80'

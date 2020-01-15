@@ -1,30 +1,31 @@
 package model
 
 import (
-	"fmt"
-	"net/http"
+	"errors"
+	"strings"
+	"time"
 
 	"github.com/asaskevich/govalidator"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type VisitorValidator interface {
-	Validate(*http.Request) error
+	Validate() error
 }
 
 type Visitor struct {
-	ID    string `bson:"_id,omitempty"`
-	Name  string `bson:"name"`
-	Notes string `bson:"notes"`
+	ID          primitive.ObjectID `bson:"_id,omitempty"`
+	Name        string             `bson:"name"`
+	Notes       string             `bson:"notes"`
+	CreatedAt   time.Time          `bson:"created_at,omitempty"`
+	SignOutTime *time.Time         `bson:"sign_out_time,omitempty"`
 }
 
-func (v Visitor) Validate(r *http.Request) error {
-	fmt.Println("visitor ", v)
-	if !govalidator.IsType(v.Notes, "string") {
-		return fmt.Errorf("Error validating notes")
+func (v Visitor) Validate() error {
+	stripped := strings.Replace(v.Name, " ", "", -1)
+	if govalidator.IsNull(stripped) || !govalidator.IsAlpha(stripped) {
+		return errors.New("Name is required and must be letters only.")
 	}
 
-	if govalidator.IsNull(v.Name) {
-		return fmt.Errorf("Error validating name")
-	}
 	return nil
 }

@@ -7,27 +7,29 @@ import (
 	"net/http"
 
 	"api/model"
+
+	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type EntryController interface {
-	GetEntriesHandler(http.ResponseWriter, *http.Request)
-	PostEntiresHandler(http.ResponseWriter, *http.Request)
-}
-type EntryControllerConcrete struct {
+type EntryController struct {
 	repository db.EntryRepository
 }
 
-func NewEntryController(repository db.EntryRepository) EntryControllerConcrete {
-	return EntryControllerConcrete{
+func NewEntryController(repository db.EntryRepository) EntryController {
+	return EntryController{
 		repository: repository,
 	}
 }
 
-func (c *EntryControllerConcrete) GetEntriesHandler(w http.ResponseWriter, r *http.Request) {
+func (c *EntryController) GetEntriesHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodOptions {
+		return
+	}
 	all, err := c.repository.GetAll()
 
 	if nil != err {
-		WriteError(w, fmt.Errorf("Error getting all", err))
+		WriteError(w, fmt.Errorf("Error getting all: %v", err))
 		return
 	}
 
@@ -38,17 +40,16 @@ func (c *EntryControllerConcrete) GetEntriesHandler(w http.ResponseWriter, r *ht
 	w.Write(response)
 }
 
-func (c *EntryControllerConcrete) PostEntriesHandler(w http.ResponseWriter, r *http.Request) {
+func (c *EntryController) PostEntriesHandler(w http.ResponseWriter, r *http.Request) {
 	visitor, err := decodeAndValidate(r)
 	if nil != err {
-		fmt.Println("1")
 		WriteError(w, err)
 		return
 	}
 
 	err = c.repository.Create(visitor)
 	if nil != err {
-		WriteError(w, fmt.Errorf("Error creating", err))
+		WriteError(w, fmt.Errorf("Error creating: %v", err))
 		return
 	}
 
@@ -56,9 +57,34 @@ func (c *EntryControllerConcrete) PostEntriesHandler(w http.ResponseWriter, r *h
 	w.WriteHeader(http.StatusAccepted)
 }
 
+func (c *EntryController) SignOutEntryHandler(w http.ResponseWriter, r *http.Request) {
+
+	params := mux.Vars(r)
+
+	id := params["id"]
+
+	visitorId, err := primitive.ObjectIDFromHex(id)
+	if nil != err {
+		WriteError(w, fmt.Errorf("invalid object id: %v", id))
+		return
+	}
+
+	update, err := c.repository.SignOut(visitorId)
+	if nil != err {
+		WriteError(w, fmt.Errorf("Error signing out: %v", err))
+		return
+	}
+
+	response, _ := json.Marshal(update)
+
+	w.Header().Set("Content-type", "applciation/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(response)
+}
+
 func WriteError(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusBadRequest)
-	w.Write([]byte(fmt.Sprintf("bad request", err)))
+	w.Write([]byte(err.Error()))
 }
 
 func decodeAndValidate(r *http.Request) (model.Visitor, error) {
@@ -67,9 +93,9 @@ func decodeAndValidate(r *http.Request) (model.Visitor, error) {
 
 	err := json.NewDecoder(r.Body).Decode(&visitor)
 
-	if err == nil {
+	if err != nil {
 		return visitor, err
 	}
 
-	return visitor, visitor.Validate(r)
+	return visitor, visitor.Validate()
 }

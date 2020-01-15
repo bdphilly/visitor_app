@@ -8,9 +8,13 @@ import (
 	"os"
 
 	"api/db"
+
 	"github.com/gorilla/mux"
 
 	"api/controller"
+	"api/middleware"
+
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -24,18 +28,34 @@ func main() {
 	}
 
 	router := mux.NewRouter()
+	router.Use(mux.CORSMethodMiddleware(router))
+	router.Use(middleware.LoggingMiddleware)
+	router.Use(middleware.AuthMiddleware)
 
-	repository := db.NewEntryRepository(mongo)
+	repository := db.NewEntryRepository(ctx, mongo)
 
 	if nil != err {
 		panic("Error building repository")
 	}
 
-	controller := controller.NewEntryController(repository) 
+	controller := controller.NewEntryController(repository)
 
-	router.HandleFunc("/entries", controller.GetEntriesHandler).Methods("GET")
+	router.HandleFunc("/entries", controller.GetEntriesHandler).Methods(http.MethodGet, http.MethodOptions)
+	router.HandleFunc("/entries", controller.PostEntriesHandler).Methods(http.MethodPost, http.MethodOptions)
+	router.HandleFunc("/entries/{id}", controller.SignOutEntryHandler).Methods(http.MethodPatch, http.MethodOptions)
 
-	router.HandleFunc("/entries", controller.PostEntriesHandler).Methods("POST")
+	corsOpts := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:8080"},
+		AllowedMethods: []string{
+			http.MethodGet,
+			http.MethodPost,
+			http.MethodPatch,
+			http.MethodOptions,
+		},
+		AllowedHeaders: []string{
+			"*",
+		},
+	})
 
 	// http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 	// 	fmt.Fprintf(w, "This is a website served by a Go HTTP server.")
@@ -56,6 +76,5 @@ func main() {
 	// test := "my test"
 
 	fmt.Println("Server started successfully!")
-	http.ListenAndServe(":3001", router)
+	http.ListenAndServe(":9090", corsOpts.Handler(router))
 }
-
